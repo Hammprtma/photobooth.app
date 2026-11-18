@@ -8,6 +8,7 @@ import {
   getFrame,
   getLayout,
   type CapturedPhoto,
+  type FilterId,
   type FrameOption,
   type FrameThemeId,
   type LayoutId,
@@ -21,22 +22,44 @@ type PhotoStripProps = {
   onHome: () => void;
 };
 
+/**
+ * Exact CSS filter lookup table used by Canvas 2D context rendering.
+ */
+const CANVAS_FILTER_MAP: Record<FilterId, string> = {
+  provia: "none",
+  "warm-vintage-sepia": "sepia(0.75) contrast(1.15) brightness(0.95) saturate(0.8) hue-rotate(-5deg)",
+  acros: "grayscale(100%) contrast(1.25) brightness(0.9)",
+  "classic-negative": "sepia(0.35) saturate(0.75) contrast(1.1) brightness(0.95) hue-rotate(-15deg)",
+  "sony-fl": "contrast(1.2) brightness(0.75) saturate(0.6) sepia(0.2) hue-rotate(-5deg)",
+  "classic-chrome": "contrast(1.15) saturate(0.8) sepia(0.15)",
+  astia: "contrast(0.85) brightness(1.15) saturate(0.9) sepia(0.1)",
+  "nostalgic-neg": "contrast(1.05) saturate(0.85) sepia(0.25) hue-rotate(5deg) brightness(1.05)",
+  velvia: "contrast(1.2) saturate(1.4) brightness(1.05)",
+  "s-cinetone": "contrast(0.95) saturate(0.9) brightness(1.05) sepia(0.05)",
+  "sony-in": "contrast(0.85) saturate(0.9) sepia(0.3) brightness(1.1)",
+  "kodak-portra": "contrast(1.1) saturate(1.2) sepia(0.1) hue-rotate(5deg)",
+  "faded-polaroid": "contrast(0.8) brightness(1.1) sepia(0.2)",
+  "cyberpunk-night": "contrast(1.2) saturate(1.5) hue-rotate(180deg)",
+};
+
 export function PhotoStrip({ photos, layoutId, frameId, onRetake, onHome }: PhotoStripProps) {
   const layout = getLayout(layoutId);
   const frame = getFrame(frameId);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
 
-  const downloadStrip = async () => {
+  const handleDownloadPhotostrip = async () => {
     if (isDownloading || photos.length !== layout.photoCount) return;
     setIsDownloading(true);
     try {
       const canvas = await renderStripCanvas(photos, layoutId, frame);
+      const dataUrl = canvas.toDataURL("image/png");
       const link = document.createElement("a");
-      const isTransparentEdge = frame.id === "frame-film" || frame.id === "summer-memories" || frame.id === "music-player";
-      link.download = `dar-der-dor-${frame.id}.${isTransparentEdge ? "png" : "jpg"}`;
-      link.href = isTransparentEdge ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.94);
+      link.href = dataUrl;
+      link.download = "Our-Little-Memory.png";
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
       setDownloaded(true);
       window.setTimeout(() => setDownloaded(false), 2400);
     } finally {
@@ -111,50 +134,100 @@ export function PhotoStrip({ photos, layoutId, frameId, onRetake, onHome }: Phot
         </motion.div>
         <p className="print-caption"><Printer size={15} /> A little piece of right-now, saved for later.</p>
         <div className="result-actions">
-          <button className="primary-button download-button" type="button" onClick={downloadStrip} disabled={isDownloading}><Download size={17} /> {isDownloading ? "Getting it ready…" : downloaded ? "Saved to your device" : "Download photostrip"}</button>
+          <button className="primary-button download-button" type="button" onClick={handleDownloadPhotostrip} disabled={isDownloading}><Download size={17} /> {isDownloading ? "Getting it ready…" : downloaded ? "Saved to your device" : "Download photostrip"}</button>
           <button className="secondary-button" type="button" onClick={onRetake}><RotateCcw size={16} /> Retake photos</button>
         </div>
-        <p className="download-footnote">A little keepsake, made just for you two.</p>
+        <p className="download-footnote">A high-resolution PNG keepsake, made just for you two.</p>
       </div>
     </section>
   );
 }
 
-async function loadImage(src: string): Promise<HTMLImageElement> {
-  const image = new Image();
-  image.crossOrigin = "anonymous";
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
+/**
+ * Asynchronously loads an HTMLImageElement using a Promise.
+ */
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
     image.onerror = () => reject(new Error(`Could not load image: ${src}`));
     image.src = src;
   });
-  return image;
 }
 
-async function renderStripCanvas(photos: CapturedPhoto[], layoutId: LayoutId, frame: FrameOption) {
-  const canvas = document.createElement("canvas");
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("Canvas is not available in this browser.");
+/**
+ * Generates an off-screen repeating analog film grain tile and overlays it across the canvas.
+ */
+function applyAnalogFilmGrain(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  const tileSize = 220;
+  const grainCanvas = document.createElement("canvas");
+  grainCanvas.width = tileSize;
+  grainCanvas.height = tileSize;
+  const grainCtx = grainCanvas.getContext("2d");
+  if (!grainCtx) return;
 
-  // Custom overlay frame rendering
+  const imageData = grainCtx.createImageData(tileSize, tileSize);
+  const data = imageData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const value = Math.floor(Math.random() * 256);
+    data[i] = value;
+    data[i + 1] = value;
+    data[i + 2] = value;
+    data[i + 3] = 255;
+  }
+  grainCtx.putImageData(imageData, 0, 0);
+
+  const pattern = ctx.createPattern(grainCanvas, "repeat");
+  if (!pattern) return;
+
+  ctx.save();
+  ctx.filter = "none";
+  ctx.globalCompositeOperation = "overlay";
+  ctx.globalAlpha = 0.15;
+  ctx.fillStyle = pattern;
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+
+  // Explicitly ensure composite operation and alpha are reset
+  ctx.globalCompositeOperation = "source-over";
+  ctx.globalAlpha = 1.0;
+}
+
+async function renderStripCanvas(capturedPhotos: CapturedPhoto[], layoutId: LayoutId, frame: FrameOption) {
+  // 1. Canvas Initialization
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D context is not available in this browser.");
+
+  // Preload all captured photos asynchronously before drawing
+  const loadedPhotos = await Promise.all(capturedPhotos.map((photo) => loadImage(photo.src)));
+
+  // Branch A: Custom illustrated frame asset (with transparent cutouts)
   if (frame.overlaySrc && frame.slots && frame.width && frame.height) {
     canvas.width = frame.width;
     canvas.height = frame.height;
 
+    // 2. Draw base background
     const isTransparentEdge = frame.id === "frame-film" || frame.id === "summer-memories" || frame.id === "music-player";
     if (!isTransparentEdge) {
-      context.fillStyle = "#fffaf0";
-      context.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#fffaf0";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    for (let index = 0; index < photos.length; index++) {
+    // 3. Process Photos & Apply Filters
+    for (let index = 0; index < capturedPhotos.length; index++) {
       const slot = frame.slots[index];
-      if (!slot) continue;
-      const image = await loadImage(photos[index].src);
-      context.save();
-      context.beginPath();
+      const image = loadedPhotos[index];
+      if (!slot || !image) continue;
+
+      const selectedFilterString = CANVAS_FILTER_MAP[capturedPhotos[index].filter] ?? getFilter(capturedPhotos[index].filter).css ?? "none";
+
+      ctx.save();
+      ctx.beginPath();
       if (slot.shape === "ellipse") {
-        context.ellipse(
+        ctx.ellipse(
           slot.x + slot.width / 2,
           slot.y + slot.height / 2,
           slot.width / 2 + 2,
@@ -164,26 +237,34 @@ async function renderStripCanvas(photos: CapturedPhoto[], layoutId: LayoutId, fr
           Math.PI * 2
         );
       } else {
-        // Expand by 2px so photos tuck cleanly behind the anti-aliased overlay border
-        context.rect(slot.x - 2, slot.y - 2, slot.width + 4, slot.height + 4);
+        ctx.rect(slot.x - 2, slot.y - 2, slot.width + 4, slot.height + 4);
       }
-      context.clip();
-      context.filter = getFilter(photos[index].filter).css;
-      drawCover(context, image, slot.x - 2, slot.y - 2, slot.width + 4, slot.height + 4);
-      context.restore();
+      ctx.clip();
+
+      ctx.filter = selectedFilterString;
+      drawCover(ctx, image, slot.x - 2, slot.y - 2, slot.width + 4, slot.height + 4);
+      ctx.filter = "none";
+      ctx.restore();
+      ctx.filter = "none";
     }
 
+    // Draw the frame image asset over the photos
     const overlayImg = await loadImage(frame.overlaySrc);
-    context.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
+    ctx.filter = "none";
+    ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
+
+    // 4. Add Analog Film Grain Overlay
+    applyAnalogFilmGrain(ctx, canvas.width, canvas.height);
+
     return canvas;
   }
 
-  // Procedural frame rendering
+  // Branch B: Procedural frame themes (Standard White, Cozy Cafe, Retro Film Roll, Polkadot, Grid, Floral)
   const frameId = frame.id;
   const settings: Record<LayoutId, { width: number; columns: number; rows: number; pad: number; gap: number; photoHeight: number }> = {
-    "classic-4": { width: 920, columns: 1, rows: 4, pad: 52, gap: 22, photoHeight: 590 },
-    "classic-3": { width: 920, columns: 1, rows: 3, pad: 52, gap: 22, photoHeight: 590 },
-    "classic-5": { width: 920, columns: 1, rows: 5, pad: 52, gap: 20, photoHeight: 500 },
+    "classic-4": { width: 800, columns: 1, rows: 4, pad: 46, gap: 20, photoHeight: 520 },
+    "classic-3": { width: 800, columns: 1, rows: 3, pad: 46, gap: 20, photoHeight: 520 },
+    "classic-5": { width: 800, columns: 1, rows: 5, pad: 46, gap: 18, photoHeight: 450 },
     "grid-2x2": { width: 1200, columns: 2, rows: 2, pad: 58, gap: 28, photoHeight: 405 },
     "wide-film": { width: 1500, columns: 4, rows: 1, pad: 50, gap: 18, photoHeight: 260 },
     collage: { width: 1000, columns: 2, rows: 2, pad: 54, gap: 22, photoHeight: 310 },
@@ -199,77 +280,117 @@ async function renderStripCanvas(photos: CapturedPhoto[], layoutId: LayoutId, fr
   canvas.width = config.width;
   canvas.height = config.pad * 2 + contentHeight + captionHeight;
 
-  context.fillStyle = frameId === "film" ? "#39251f" : frameId === "cafe" ? "#f6e9d4" : frameId === "polkadot" ? "#fff1e2" : frameId === "grid" ? "#f6f0e5" : frameId === "floral" ? "#f8eee0" : "#fffaf0";
-  context.fillRect(0, 0, canvas.width, canvas.height);
+  // 2. Draw the Frame/Background
+  ctx.fillStyle =
+    frameId === "film"
+      ? "#39251f"
+      : frameId === "cafe"
+        ? "#f6e9d4"
+        : frameId === "polkadot"
+          ? "#fff1e2"
+          : frameId === "grid"
+            ? "#f6f0e5"
+            : frameId === "floral"
+              ? "#f8eee0"
+              : "#fffaf0";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   if (frameId === "cafe") {
-    context.strokeStyle = "#b7624e";
-    context.lineWidth = 5;
-    context.setLineDash([2, 13]);
-    context.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
-    context.setLineDash([]);
+    ctx.strokeStyle = "#b7624e";
+    ctx.lineWidth = 5;
+    ctx.setLineDash([2, 13]);
+    ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+    ctx.setLineDash([]);
   }
   if (frameId === "polkadot") {
-    context.fillStyle = "#cf8c77";
+    ctx.fillStyle = "#cf8c77";
     for (let y = 18; y < canvas.height - 18; y += 30) {
       for (let x = 18; x < canvas.width - 18; x += 30) {
-        context.beginPath();
-        context.arc(x, y, 2.2, 0, Math.PI * 2);
-        context.fill();
+        ctx.beginPath();
+        ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
   }
   if (frameId === "grid") {
-    context.strokeStyle = "#d6c8b4";
-    context.lineWidth = 1;
-    context.beginPath();
-    for (let x = 16; x < canvas.width; x += 28) { context.moveTo(x, 0); context.lineTo(x, canvas.height); }
-    for (let y = 16; y < canvas.height; y += 28) { context.moveTo(0, y); context.lineTo(canvas.width, y); }
-    context.stroke();
+    ctx.strokeStyle = "#d6c8b4";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 16; x < canvas.width; x += 28) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, canvas.height);
+    }
+    for (let y = 16; y < canvas.height; y += 28) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(canvas.width, y);
+    }
+    ctx.stroke();
   }
   if (frameId === "floral") {
     const color = "#a47c69";
-    drawLeafSprig(context, 32, 35, 0, color);
-    drawLeafSprig(context, canvas.width - 32, 35, Math.PI, color);
-    drawLeafSprig(context, 32, canvas.height - 45, -Math.PI / 2, color);
-    drawLeafSprig(context, canvas.width - 32, canvas.height - 45, Math.PI / 2, color);
+    drawLeafSprig(ctx, 32, 35, 0, color);
+    drawLeafSprig(ctx, canvas.width - 32, 35, Math.PI, color);
+    drawLeafSprig(ctx, 32, canvas.height - 45, -Math.PI / 2, color);
+    drawLeafSprig(ctx, canvas.width - 32, canvas.height - 45, Math.PI / 2, color);
   }
   if (frameId === "film") {
-    context.fillStyle = "#dfbd80";
+    ctx.fillStyle = "#dfbd80";
     for (let x = 32; x < canvas.width - 32; x += 74) {
-      roundedRect(context, x, 18, 35, 18, 7);
-      context.fill();
-      roundedRect(context, x, canvas.height - 36, 35, 18, 7);
-      context.fill();
+      roundedRect(ctx, x, 18, 35, 18, 7);
+      ctx.fill();
+      roundedRect(ctx, x, canvas.height - 36, 35, 18, 7);
+      ctx.fill();
     }
   }
 
-  const positions = photos.map((_, index) => {
+  const positions = capturedPhotos.map((_, index) => {
     if (layoutId === "collage") {
       return index === 0
         ? { x: config.pad, y: config.pad, width: contentWidth, height: photoHeight }
-        : { x: config.pad + (index - 1) * (cellWidth + config.gap), y: config.pad + photoHeight + config.gap, width: cellWidth, height: photoHeight };
+        : {
+            x: config.pad + (index - 1) * (cellWidth + config.gap),
+            y: config.pad + photoHeight + config.gap,
+            width: cellWidth,
+            height: photoHeight,
+          };
     }
-    return { x: config.pad + (index % config.columns) * (cellWidth + config.gap), y: config.pad + Math.floor(index / config.columns) * (photoHeight + config.gap), width: cellWidth, height: photoHeight };
+    return {
+      x: config.pad + (index % config.columns) * (cellWidth + config.gap),
+      y: config.pad + Math.floor(index / config.columns) * (photoHeight + config.gap),
+      width: cellWidth,
+      height: photoHeight,
+    };
   });
 
-  for (let index = 0; index < photos.length; index++) {
-    const image = await loadImage(photos[index].src);
+  // 3. Process Photos & Apply Filters
+  for (let index = 0; index < capturedPhotos.length; index++) {
+    const image = loadedPhotos[index];
     const pos = positions[index];
-    context.save();
-    context.beginPath();
-    roundedRect(context, pos.x, pos.y, pos.width, pos.height, frameId === "standard" ? 3 : 8);
-    context.clip();
-    context.filter = getFilter(photos[index].filter).css;
-    drawCover(context, image, pos.x, pos.y, pos.width, pos.height);
-    context.restore();
+    if (!image || !pos) continue;
+
+    const selectedFilterString = CANVAS_FILTER_MAP[capturedPhotos[index].filter] ?? getFilter(capturedPhotos[index].filter).css ?? "none";
+
+    ctx.save();
+    ctx.beginPath();
+    roundedRect(ctx, pos.x, pos.y, pos.width, pos.height, frameId === "standard" ? 3 : 8);
+    ctx.clip();
+
+    ctx.filter = selectedFilterString;
+    drawCover(ctx, image, pos.x, pos.y, pos.width, pos.height);
+    ctx.filter = "none";
+    ctx.restore();
+    ctx.filter = "none";
   }
 
-  context.fillStyle = frameId === "film" ? "#f4e6cc" : "#874b3e";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.font = "600 25px Arial, sans-serif";
-  context.fillText("♥   YOU + ME   ·   FOREVER A FAVORITE", canvas.width / 2, canvas.height - config.pad - captionHeight / 2);
+  ctx.fillStyle = frameId === "film" ? "#f4e6cc" : "#874b3e";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "600 24px Arial, sans-serif";
+  ctx.fillText("♥   YOU + ME   ·   FOREVER A FAVORITE", canvas.width / 2, canvas.height - config.pad - captionHeight / 2);
+
+  // 4. Add Analog Film Grain Overlay
+  applyAnalogFilmGrain(ctx, canvas.width, canvas.height);
+
   return canvas;
 }
 

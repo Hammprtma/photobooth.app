@@ -236,6 +236,7 @@ button:focus-visible { outline: 2px solid #e8b184; outline-offset: 4px; }
 .film-swatch { flex: 0 0 42px; width: 42px; height: 40px; display: grid; place-items: center; overflow: hidden; border-radius: 5px; background: linear-gradient(135deg, #b7835e, #e3c39a 55%, #76513c); }
 .film-swatch span { display: block; width: 15px; height: 15px; border-radius: 50%; background: rgb(246 227 193 / 70%); box-shadow: 0 0 0 4px rgb(70 42 29 / 18%); }
 .swatch-provia { background: linear-gradient(140deg, #c4976e 0%, #9a6449 50%, #e8cba3 100%); }
+.swatch-warm-vintage-sepia { background: linear-gradient(140deg, #b87e4b 0%, #d9b179 48%, #73472c 100%); }
 .swatch-classic-chrome { background: linear-gradient(140deg, #89715d 0%, #c5a883 47%, #6b5347 100%); }
 .swatch-nostalgic-neg { background: linear-gradient(140deg, #c39351 0%, #e2bd7e 48%, #8d503d 100%); }
 .swatch-astia { background: linear-gradient(140deg, #d5a28a 0%, #e6c7a4 52%, #a35f56 100%); }

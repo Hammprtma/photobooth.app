@@ -22,6 +22,7 @@ export type FrameThemeId =
 
 export type FilterId =
   | "provia"
+  | "warm-vintage-sepia"
   | "classic-chrome"
   | "nostalgic-neg"
   | "classic-negative"
@@ -270,14 +271,15 @@ export const FRAMES: FrameOption[] = [
 
 export const FILTERS: { id: FilterId; name: string; subtitle: string; css: string }[] = [
   { id: "provia", name: "Provia", subtitle: "Standard", css: "none" },
-  { id: "classic-chrome", name: "Classic Chrome", subtitle: "Muted & lovely", css: "contrast(1.1) saturate(0.65) sepia(0.15) hue-rotate(-5deg)" },
+  { id: "warm-vintage-sepia", name: "Warm Vintage Sepia", subtitle: "Nostalgic warmth", css: "sepia(0.75) contrast(1.15) brightness(0.95) saturate(0.8) hue-rotate(-5deg)" },
+  { id: "classic-chrome", name: "Fuji Classic Chrome", subtitle: "Muted & lovely", css: "contrast(1.15) saturate(0.8) sepia(0.15)" },
+  { id: "classic-negative", name: "Fuji Classic Negative", subtitle: "Deep, moody color", css: "sepia(0.35) saturate(0.75) contrast(1.1) brightness(0.95) hue-rotate(-15deg)" },
+  { id: "astia", name: "Fuji Astia (Faded Soft)", subtitle: "Soft & sweet", css: "contrast(0.85) brightness(1.15) saturate(0.9) sepia(0.1)" },
+  { id: "acros", name: "Classic Mono (B&W)", subtitle: "Black & white", css: "grayscale(100%) contrast(1.25) brightness(0.9)" },
+  { id: "sony-fl", name: "Sony FL (Dark Cinematic)", subtitle: "Moody & teal", css: "contrast(1.2) brightness(0.75) saturate(0.6) sepia(0.2) hue-rotate(-5deg)" },
   { id: "nostalgic-neg", name: "Nostalgic Neg", subtitle: "Golden hour", css: "contrast(1.05) saturate(0.85) sepia(0.25) hue-rotate(5deg) brightness(1.05)" },
-  { id: "classic-negative", name: "Classic Negative", subtitle: "Deep, moody color", css: "contrast(1.2) saturate(0.7) sepia(0.1) hue-rotate(-15deg)" },
   { id: "velvia", name: "Velvia", subtitle: "Punchy & vivid", css: "contrast(1.2) saturate(1.4) brightness(1.05)" },
-  { id: "astia", name: "Astia", subtitle: "Soft & sweet", css: "contrast(0.9) saturate(1.1) brightness(1.1) sepia(0.05)" },
-  { id: "acros", name: "Acros", subtitle: "Black & white", css: "grayscale(100%) contrast(1.25) brightness(0.95)" },
   { id: "s-cinetone", name: "S-Cinetone", subtitle: "Soft cinematic", css: "contrast(0.95) saturate(0.9) brightness(1.05) sepia(0.05)" },
-  { id: "sony-fl", name: "Sony FL (Film)", subtitle: "Moody & teal", css: "contrast(1.1) saturate(0.8) sepia(0.15) hue-rotate(-15deg)" },
   { id: "sony-in", name: "Sony IN (Instant)", subtitle: "Washed vintage", css: "contrast(0.85) saturate(0.9) sepia(0.3) brightness(1.1)" },
   { id: "kodak-portra", name: "Kodak Portra", subtitle: "Warm & golden", css: "contrast(1.1) saturate(1.2) sepia(0.1) hue-rotate(5deg)" },
   { id: "faded-polaroid", name: "Faded Polaroid", subtitle: "Softly faded", css: "contrast(0.8) brightness(1.1) sepia(0.2)" },
