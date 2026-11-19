@@ -269,21 +269,143 @@ export const FRAMES: FrameOption[] = [
   { id: "floral", name: "Floral Border", detail: "A leafy little frame" },
 ];
 
-export const FILTERS: { id: FilterId; name: string; subtitle: string; css: string }[] = [
-  { id: "provia", name: "Provia", subtitle: "Standard", css: "none" },
-  { id: "warm-vintage-sepia", name: "Warm Vintage Sepia", subtitle: "Nostalgic warmth", css: "sepia(0.75) contrast(1.15) brightness(0.95) saturate(0.8) hue-rotate(-5deg)" },
-  { id: "classic-chrome", name: "Fuji Classic Chrome", subtitle: "Muted & lovely", css: "contrast(1.15) saturate(0.8) sepia(0.15)" },
-  { id: "classic-negative", name: "Fuji Classic Negative", subtitle: "Deep, moody color", css: "sepia(0.35) saturate(0.75) contrast(1.1) brightness(0.95) hue-rotate(-15deg)" },
-  { id: "astia", name: "Fuji Astia (Faded Soft)", subtitle: "Soft & sweet", css: "contrast(0.85) brightness(1.15) saturate(0.9) sepia(0.1)" },
-  { id: "acros", name: "Classic Mono (B&W)", subtitle: "Black & white", css: "grayscale(100%) contrast(1.25) brightness(0.9)" },
-  { id: "sony-fl", name: "Sony FL (Dark Cinematic)", subtitle: "Moody & teal", css: "contrast(1.2) brightness(0.75) saturate(0.6) sepia(0.2) hue-rotate(-5deg)" },
-  { id: "nostalgic-neg", name: "Nostalgic Neg", subtitle: "Golden hour", css: "contrast(1.05) saturate(0.85) sepia(0.25) hue-rotate(5deg) brightness(1.05)" },
-  { id: "velvia", name: "Velvia", subtitle: "Punchy & vivid", css: "contrast(1.2) saturate(1.4) brightness(1.05)" },
-  { id: "s-cinetone", name: "S-Cinetone", subtitle: "Soft cinematic", css: "contrast(0.95) saturate(0.9) brightness(1.05) sepia(0.05)" },
-  { id: "sony-in", name: "Sony IN (Instant)", subtitle: "Washed vintage", css: "contrast(0.85) saturate(0.9) sepia(0.3) brightness(1.1)" },
-  { id: "kodak-portra", name: "Kodak Portra", subtitle: "Warm & golden", css: "contrast(1.1) saturate(1.2) sepia(0.1) hue-rotate(5deg)" },
-  { id: "faded-polaroid", name: "Faded Polaroid", subtitle: "Softly faded", css: "contrast(0.8) brightness(1.1) sepia(0.2)" },
-  { id: "cyberpunk-night", name: "Cyberpunk Night", subtitle: "Electric after-dark", css: "contrast(1.2) saturate(1.5) hue-rotate(180deg)" },
+export type FilterPreset = {
+  id: FilterId;
+  name: string;
+  subtitle: string;
+  cssFilter: string;
+  fadeColor: string | null;
+  tintColor: string | null;
+  grainOpacity: number;
+};
+
+export const FILTERS: FilterPreset[] = [
+  {
+    id: "provia",
+    name: "Provia (Standard)",
+    subtitle: "Natural & true",
+    cssFilter: "none",
+    fadeColor: null,
+    tintColor: null,
+    grainOpacity: 0.04,
+  },
+  {
+    id: "warm-vintage-sepia",
+    name: "Warm Vintage Sepia",
+    subtitle: "Creamy monochrome",
+    cssFilter: "grayscale(100%) sepia(0.35) contrast(1.12) brightness(1.02) saturate(0.85)",
+    fadeColor: "rgba(25, 22, 18, 0.25)",
+    tintColor: null,
+    grainOpacity: 0.10,
+  },
+  {
+    id: "classic-negative",
+    name: "Fuji Classic Negative",
+    subtitle: "Warm olive matte analog",
+    cssFilter: "sepia(0.28) saturate(0.72) contrast(0.92) brightness(0.96) hue-rotate(4deg)",
+    fadeColor: "rgba(28, 34, 28, 0.35)",
+    tintColor: "rgba(215, 200, 165, 0.15)",
+    grainOpacity: 0.18,
+  },
+  {
+    id: "sony-fl",
+    name: "Sony FL",
+    subtitle: "Dark moody cinematic",
+    cssFilter: "contrast(1.15) brightness(0.78) saturate(0.62) sepia(0.18) hue-rotate(-5deg)",
+    fadeColor: "rgba(18, 22, 24, 0.30)",
+    tintColor: "rgba(30, 45, 50, 0.15)",
+    grainOpacity: 0.20,
+  },
+  {
+    id: "classic-chrome",
+    name: "Fuji Classic Chrome",
+    subtitle: "Punchy documentary",
+    cssFilter: "contrast(1.12) saturate(0.75) sepia(0.12) brightness(0.98)",
+    fadeColor: "rgba(20, 24, 28, 0.15)",
+    tintColor: "rgba(190, 205, 215, 0.10)",
+    grainOpacity: 0.10,
+  },
+  {
+    id: "astia",
+    name: "Fuji Astia",
+    subtitle: "Faded soft daylight",
+    cssFilter: "contrast(0.86) brightness(1.10) saturate(0.92) sepia(0.08)",
+    fadeColor: "rgba(35, 35, 30, 0.20)",
+    tintColor: "rgba(245, 235, 215, 0.12)",
+    grainOpacity: 0.08,
+  },
+  {
+    id: "acros",
+    name: "Fuji Acros",
+    subtitle: "Rich B&W",
+    cssFilter: "grayscale(100%) contrast(1.22) brightness(0.95)",
+    fadeColor: "rgba(15, 15, 15, 0.20)",
+    tintColor: null,
+    grainOpacity: 0.14,
+  },
+  {
+    id: "nostalgic-neg",
+    name: "Nostalgic Neg",
+    subtitle: "Golden hour amber",
+    cssFilter: "contrast(1.04) saturate(0.86) sepia(0.24) hue-rotate(4deg) brightness(1.03)",
+    fadeColor: "rgba(32, 24, 18, 0.22)",
+    tintColor: "rgba(235, 195, 140, 0.14)",
+    grainOpacity: 0.14,
+  },
+  {
+    id: "velvia",
+    name: "Velvia",
+    subtitle: "Punchy & vivid slide",
+    cssFilter: "contrast(1.18) saturate(1.35) brightness(1.02)",
+    fadeColor: "rgba(16, 12, 18, 0.10)",
+    tintColor: "rgba(210, 175, 195, 0.08)",
+    grainOpacity: 0.08,
+  },
+  {
+    id: "s-cinetone",
+    name: "S-Cinetone",
+    subtitle: "Soft skin & cinema tones",
+    cssFilter: "contrast(0.95) saturate(0.88) brightness(1.03) sepia(0.06)",
+    fadeColor: "rgba(26, 23, 22, 0.22)",
+    tintColor: "rgba(225, 205, 190, 0.12)",
+    grainOpacity: 0.10,
+  },
+  {
+    id: "sony-in",
+    name: "Sony IN (Instant)",
+    subtitle: "Washed vintage print",
+    cssFilter: "contrast(0.86) saturate(0.88) sepia(0.26) brightness(1.08)",
+    fadeColor: "rgba(42, 36, 32, 0.28)",
+    tintColor: "rgba(240, 225, 195, 0.15)",
+    grainOpacity: 0.16,
+  },
+  {
+    id: "kodak-portra",
+    name: "Kodak Portra 400",
+    subtitle: "Warm & golden skin",
+    cssFilter: "contrast(1.06) saturate(1.12) sepia(0.12) hue-rotate(4deg) brightness(1.02)",
+    fadeColor: "rgba(30, 24, 20, 0.18)",
+    tintColor: "rgba(240, 210, 170, 0.14)",
+    grainOpacity: 0.12,
+  },
+  {
+    id: "faded-polaroid",
+    name: "Faded Polaroid",
+    subtitle: "Softly lifted instant",
+    cssFilter: "contrast(0.82) brightness(1.08) saturate(0.85) sepia(0.20)",
+    fadeColor: "rgba(46, 40, 36, 0.34)",
+    tintColor: "rgba(245, 230, 200, 0.16)",
+    grainOpacity: 0.18,
+  },
+  {
+    id: "cyberpunk-night",
+    name: "Cyberpunk Night",
+    subtitle: "Electric after-dark",
+    cssFilter: "contrast(1.18) saturate(1.42) hue-rotate(180deg)",
+    fadeColor: "rgba(18, 16, 36, 0.24)",
+    tintColor: "rgba(120, 90, 220, 0.15)",
+    grainOpacity: 0.14,
+  },
 ];
 
 export const getLayout = (id: LayoutId) => LAYOUTS.find((layout) => layout.id === id) ?? LAYOUTS[0];

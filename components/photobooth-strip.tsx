@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Download, Heart, Printer, RotateCcw } from "lucide-react";
+import { FilmOverlayLayers } from "@/components/photobooth-camera";
 import {
   getFilter,
   getFrame,
   getLayout,
   type CapturedPhoto,
-  type FilterId,
+  type FilterPreset,
   type FrameOption,
   type FrameThemeId,
   type LayoutId,
@@ -20,26 +21,6 @@ type PhotoStripProps = {
   frameId: FrameThemeId;
   onRetake: () => void;
   onHome: () => void;
-};
-
-/**
- * Exact CSS filter lookup table used by Canvas 2D context rendering.
- */
-const CANVAS_FILTER_MAP: Record<FilterId, string> = {
-  provia: "none",
-  "warm-vintage-sepia": "sepia(0.75) contrast(1.15) brightness(0.95) saturate(0.8) hue-rotate(-5deg)",
-  acros: "grayscale(100%) contrast(1.25) brightness(0.9)",
-  "classic-negative": "sepia(0.35) saturate(0.75) contrast(1.1) brightness(0.95) hue-rotate(-15deg)",
-  "sony-fl": "contrast(1.2) brightness(0.75) saturate(0.6) sepia(0.2) hue-rotate(-5deg)",
-  "classic-chrome": "contrast(1.15) saturate(0.8) sepia(0.15)",
-  astia: "contrast(0.85) brightness(1.15) saturate(0.9) sepia(0.1)",
-  "nostalgic-neg": "contrast(1.05) saturate(0.85) sepia(0.25) hue-rotate(5deg) brightness(1.05)",
-  velvia: "contrast(1.2) saturate(1.4) brightness(1.05)",
-  "s-cinetone": "contrast(0.95) saturate(0.9) brightness(1.05) sepia(0.05)",
-  "sony-in": "contrast(0.85) saturate(0.9) sepia(0.3) brightness(1.1)",
-  "kodak-portra": "contrast(1.1) saturate(1.2) sepia(0.1) hue-rotate(5deg)",
-  "faded-polaroid": "contrast(0.8) brightness(1.1) sepia(0.2)",
-  "cyberpunk-night": "contrast(1.2) saturate(1.5) hue-rotate(180deg)",
 };
 
 export function PhotoStrip({ photos, layoutId, frameId, onRetake, onHome }: PhotoStripProps) {
@@ -96,6 +77,7 @@ export function PhotoStrip({ photos, layoutId, frameId, onRetake, onHome }: Phot
               {photos.map((photo, index) => {
                 const slot = frame.slots?.[index];
                 if (!slot) return null;
+                const preset = getFilter(photo.filter);
                 return (
                   <div
                     key={photo.id}
@@ -110,8 +92,9 @@ export function PhotoStrip({ photos, layoutId, frameId, onRetake, onHome }: Phot
                     <img
                       src={photo.src}
                       alt={`Photobooth moment ${index + 1}`}
-                      style={{ filter: getFilter(photo.filter).css }}
+                      style={{ filter: preset.cssFilter }}
                     />
+                    <FilmOverlayLayers preset={preset} />
                   </div>
                 );
               })}
@@ -124,7 +107,16 @@ export function PhotoStrip({ photos, layoutId, frameId, onRetake, onHome }: Phot
           ) : (
             <div className={`photo-strip-frame frame-${frameId} strip-${layoutId}`}>
               <div className={`strip-photo-grid ${layout.gridClass}`}>
-                {photos.map((photo, index) => <div className="strip-photo" key={photo.id}><img src={photo.src} alt={`Photobooth moment ${index + 1}`} style={{ filter: getFilter(photo.filter).css }} /><span className="strip-photo-index">{String(index + 1).padStart(2, "0")}</span></div>)}
+                {photos.map((photo, index) => {
+                  const preset = getFilter(photo.filter);
+                  return (
+                    <div className="strip-photo" key={photo.id}>
+                      <img src={photo.src} alt={`Photobooth moment ${index + 1}`} style={{ filter: preset.cssFilter }} />
+                      <FilmOverlayLayers preset={preset} />
+                      <span className="strip-photo-index">{String(index + 1).padStart(2, "0")}</span>
+                    </div>
+                  );
+                })}
               </div>
               <div className="strip-caption"><span className="caption-heart"><Heart size={13} fill="currentColor" /></span><span>YOU + ME</span><i>•</i><span>FOREVER A FAVORITE</span></div>
               {frameId === "film" && <div className="film-perforations" aria-hidden="true"><span /><span /><span /><span /><span /><span /></div>}
@@ -157,15 +149,15 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /**
- * Generates an off-screen repeating analog film grain tile and overlays it across the canvas.
+ * Generates an off-screen repeating analog film grain CanvasPattern.
  */
-function applyAnalogFilmGrain(ctx: CanvasRenderingContext2D, width: number, height: number) {
+function createFilmGrainPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
   const tileSize = 220;
   const grainCanvas = document.createElement("canvas");
   grainCanvas.width = tileSize;
   grainCanvas.height = tileSize;
   const grainCtx = grainCanvas.getContext("2d");
-  if (!grainCtx) return;
+  if (!grainCtx) return null;
 
   const imageData = grainCtx.createImageData(tileSize, tileSize);
   const data = imageData.data;
@@ -179,20 +171,59 @@ function applyAnalogFilmGrain(ctx: CanvasRenderingContext2D, width: number, heig
   }
   grainCtx.putImageData(imageData, 0, 0);
 
-  const pattern = ctx.createPattern(grainCanvas, "repeat");
-  if (!pattern) return;
+  return ctx.createPattern(grainCanvas, "repeat");
+}
 
-  ctx.save();
+/**
+ * Draws a single photo within the active clip path, applying the multi-stage analog film simulation:
+ * 1. Base CSS filter (cssFilter)
+ * 2. Lifted blacks / matte fade layer (fadeColor with 'lighten' blend mode)
+ * 3. Film emulsion color cast (tintColor with 'soft-light' blend mode)
+ * 4. Calibrated analog film grain (grainOpacity with 'overlay' blend mode)
+ */
+function renderPhotoWithFilmPreset(
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  preset: FilterPreset,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  grainPattern: CanvasPattern | null
+) {
+  // Stage 1: Base CSS Filter
+  ctx.filter = preset.cssFilter;
+  drawCover(ctx, image, x, y, width, height);
   ctx.filter = "none";
-  ctx.globalCompositeOperation = "overlay";
-  ctx.globalAlpha = 0.15;
-  ctx.fillStyle = pattern;
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
 
-  // Explicitly ensure composite operation and alpha are reset
+  // Stage 2: Matte Fade Layer (Lifts pure blacks)
+  if (preset.fadeColor) {
+    ctx.globalCompositeOperation = "lighten";
+    ctx.globalAlpha = 1.0;
+    ctx.fillStyle = preset.fadeColor;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  // Stage 3: Film Color Tint Layer
+  if (preset.tintColor) {
+    ctx.globalCompositeOperation = "soft-light";
+    ctx.globalAlpha = 1.0;
+    ctx.fillStyle = preset.tintColor;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  // Stage 4: Analog Film Grain Layer
+  if (grainPattern && preset.grainOpacity > 0) {
+    ctx.globalCompositeOperation = "overlay";
+    ctx.globalAlpha = preset.grainOpacity;
+    ctx.fillStyle = grainPattern;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  // Reset composite state before restoring clip
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1.0;
+  ctx.filter = "none";
 }
 
 async function renderStripCanvas(capturedPhotos: CapturedPhoto[], layoutId: LayoutId, frame: FrameOption) {
@@ -201,8 +232,9 @@ async function renderStripCanvas(capturedPhotos: CapturedPhoto[], layoutId: Layo
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D context is not available in this browser.");
 
-  // Preload all captured photos asynchronously before drawing
+  // Preload all captured photos asynchronously and build reusable grain pattern
   const loadedPhotos = await Promise.all(capturedPhotos.map((photo) => loadImage(photo.src)));
+  const grainPattern = createFilmGrainPattern(ctx);
 
   // Branch A: Custom illustrated frame asset (with transparent cutouts)
   if (frame.overlaySrc && frame.slots && frame.width && frame.height) {
@@ -216,13 +248,17 @@ async function renderStripCanvas(capturedPhotos: CapturedPhoto[], layoutId: Layo
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
-    // 3. Process Photos & Apply Filters
+    // 3. Process Photos & Apply Multi-Stage Film Presets Inside Clipped Slots
     for (let index = 0; index < capturedPhotos.length; index++) {
       const slot = frame.slots[index];
       const image = loadedPhotos[index];
       if (!slot || !image) continue;
 
-      const selectedFilterString = CANVAS_FILTER_MAP[capturedPhotos[index].filter] ?? getFilter(capturedPhotos[index].filter).css ?? "none";
+      const preset = getFilter(capturedPhotos[index].filter);
+      const drawX = slot.x - 2;
+      const drawY = slot.y - 2;
+      const drawW = slot.width + 4;
+      const drawH = slot.height + 4;
 
       ctx.save();
       ctx.beginPath();
@@ -237,24 +273,21 @@ async function renderStripCanvas(capturedPhotos: CapturedPhoto[], layoutId: Layo
           Math.PI * 2
         );
       } else {
-        ctx.rect(slot.x - 2, slot.y - 2, slot.width + 4, slot.height + 4);
+        ctx.rect(drawX, drawY, drawW, drawH);
       }
       ctx.clip();
 
-      ctx.filter = selectedFilterString;
-      drawCover(ctx, image, slot.x - 2, slot.y - 2, slot.width + 4, slot.height + 4);
-      ctx.filter = "none";
+      renderPhotoWithFilmPreset(ctx, image, preset, drawX, drawY, drawW, drawH, grainPattern);
+
       ctx.restore();
-      ctx.filter = "none";
     }
 
-    // Draw the frame image asset over the photos
+    // Draw the frame image asset over the photos (completely clean and unaffected by photo filters/grain)
     const overlayImg = await loadImage(frame.overlaySrc);
     ctx.filter = "none";
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 1.0;
     ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
-
-    // 4. Add Analog Film Grain Overlay
-    applyAnalogFilmGrain(ctx, canvas.width, canvas.height);
 
     return canvas;
   }
@@ -362,34 +395,30 @@ async function renderStripCanvas(capturedPhotos: CapturedPhoto[], layoutId: Layo
     };
   });
 
-  // 3. Process Photos & Apply Filters
+  // 3. Process Photos & Apply Multi-Stage Film Presets Inside Clipped Slots
   for (let index = 0; index < capturedPhotos.length; index++) {
     const image = loadedPhotos[index];
     const pos = positions[index];
     if (!image || !pos) continue;
 
-    const selectedFilterString = CANVAS_FILTER_MAP[capturedPhotos[index].filter] ?? getFilter(capturedPhotos[index].filter).css ?? "none";
+    const preset = getFilter(capturedPhotos[index].filter);
 
     ctx.save();
     ctx.beginPath();
     roundedRect(ctx, pos.x, pos.y, pos.width, pos.height, frameId === "standard" ? 3 : 8);
     ctx.clip();
 
-    ctx.filter = selectedFilterString;
-    drawCover(ctx, image, pos.x, pos.y, pos.width, pos.height);
-    ctx.filter = "none";
+    renderPhotoWithFilmPreset(ctx, image, preset, pos.x, pos.y, pos.width, pos.height, grainPattern);
+
     ctx.restore();
-    ctx.filter = "none";
   }
 
+  // Frame caption remains clean and unaffected by photo filters/grain
   ctx.fillStyle = frameId === "film" ? "#f4e6cc" : "#874b3e";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = "600 24px Arial, sans-serif";
   ctx.fillText("♥   YOU + ME   ·   FOREVER A FAVORITE", canvas.width / 2, canvas.height - config.pad - captionHeight / 2);
-
-  // 4. Add Analog Film Grain Overlay
-  applyAnalogFilmGrain(ctx, canvas.width, canvas.height);
 
   return canvas;
 }

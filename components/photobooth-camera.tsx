@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Aperture, ArrowLeft, Camera, Check, FlipHorizontal2, Heart, RefreshCw } from "lucide-react";
-import { FILTERS, getFilter, type CapturedPhoto, type FilterId, type LayoutOption } from "@/components/photobooth-types";
+import { FILTERS, getFilter, type CapturedPhoto, type FilterId, type FilterPreset, type LayoutOption } from "@/components/photobooth-types";
 
 type CameraRoomProps = {
   layout: LayoutOption;
@@ -125,13 +125,13 @@ export function CameraRoom({ layout, filterId, photos, onFilterChange, onCapture
             <video
               ref={videoRef}
               className={`camera-video ${facingMode === "user" ? "is-mirrored" : ""}`}
-              style={{ filter: activeFilter.css }}
+              style={{ filter: activeFilter.cssFilter }}
               autoPlay
               muted
               playsInline
               aria-label="Live camera preview"
             />
-            <div className="camera-grain" aria-hidden="true" />
+            <FilmOverlayLayers preset={activeFilter} />
             <div className="viewfinder-corners" aria-hidden="true"><i /><i /><i /><i /></div>
             <div className="camera-live-label"><span className={cameraStatus === "ready" ? "live-dot" : "live-dot is-loading"} /> {cameraStatus === "ready" ? "LIVE VIEW" : cameraStatus === "loading" ? "WAKING UP THE CAMERA" : "CAMERA PAUSED"}</div>
             <div className="camera-counter"><span>TAKE</span><strong>{String(Math.min(photos.length + 1, layout.photoCount)).padStart(2, "0")}</strong><span>OF {String(layout.photoCount).padStart(2, "0")}</span></div>
@@ -184,7 +184,19 @@ export function CameraRoom({ layout, filterId, photos, onFilterChange, onCapture
             <div className="progress-thumbnails">
               {Array.from({ length: layout.photoCount }, (_, index) => {
                 const photo = photos[index];
-                return <div className={`progress-photo ${photo ? "is-filled" : ""}`} key={index}>{photo ? <img src={photo.src} alt={`Captured photo ${index + 1}`} style={{ filter: getFilter(photo.filter).css }} /> : <span>{String(index + 1).padStart(2, "0")}</span>}</div>;
+                const photoPreset = photo ? getFilter(photo.filter) : null;
+                return (
+                  <div className={`progress-photo ${photo ? "is-filled" : ""}`} key={index}>
+                    {photo && photoPreset ? (
+                      <>
+                        <img src={photo.src} alt={`Captured photo ${index + 1}`} style={{ filter: photoPreset.cssFilter }} />
+                        <FilmOverlayLayers preset={photoPreset} />
+                      </>
+                    ) : (
+                      <span>{String(index + 1).padStart(2, "0")}</span>
+                    )}
+                  </div>
+                );
               })}
             </div>
             <div className="progress-note"><span className="progress-heart"><Heart size={15} /></span><span>{photos.length === layout.photoCount ? "That’s a wrap!" : "Your strip is coming together"}</span></div>
@@ -202,9 +214,9 @@ export function CameraRoom({ layout, filterId, photos, onFilterChange, onCapture
                 onClick={() => onFilterChange(filter.id)}
                 aria-pressed={filterId === filter.id}
               >
-                <span className={`film-swatch swatch-${filter.id}`} style={{ filter: filter.css }}><span /></span>
+                <span className={`film-swatch swatch-${filter.id}`} style={{ filter: filter.cssFilter }}><span /></span>
                 <span className="film-option-copy"><strong>{filter.name}</strong><small>{filter.subtitle}</small></span>
-                <span className="film-index">0{index + 1}</span>
+                <span className="film-index">{String(index + 1).padStart(2, "0")}</span>
                 {filterId === filter.id && <Check className="film-check" size={16} />}
               </button>
             ))}
@@ -214,5 +226,33 @@ export function CameraRoom({ layout, filterId, photos, onFilterChange, onCapture
         </aside>
       </div>
     </section>
+  );
+}
+
+export function FilmOverlayLayers({ preset }: { preset: FilterPreset }) {
+  return (
+    <>
+      {preset.fadeColor && (
+        <div
+          className="film-layer-fade"
+          style={{ backgroundColor: preset.fadeColor }}
+          aria-hidden="true"
+        />
+      )}
+      {preset.tintColor && (
+        <div
+          className="film-layer-tint"
+          style={{ backgroundColor: preset.tintColor }}
+          aria-hidden="true"
+        />
+      )}
+      {preset.grainOpacity > 0 && (
+        <div
+          className="camera-grain"
+          style={{ opacity: preset.grainOpacity }}
+          aria-hidden="true"
+        />
+      )}
+    </>
   );
 }
